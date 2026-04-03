@@ -211,7 +211,6 @@ This tool is provided as-is for educational and personal use. Always backup your
 
 ## Version History
 
-- **2.0.0** - Added cutoff/capping functionality, improved validation, RTX 30-series testing
 - **1.0.0** - Initial release, GTX 10-series support
 
 ## Disclaimer
