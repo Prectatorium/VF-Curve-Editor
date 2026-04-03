@@ -1,151 +1,219 @@
 # VF Curve Editor
 
-A Python tool for parsing, shifting, and optionally capping MSI Afterburner / NVIDIA VF (Voltage-Frequency) curve blobs.
+A Python tool for parsing, shifting, and modifying MSI Afterburner voltage-frequency (VF) curve blobs for NVIDIA GPUs.
 
 ## Overview
 
-This tool manipulates the binary VF curve data used by MSI Afterburner and NVIDIA drivers. It allows you to shift the entire frequency curve, apply additional offsets, and cap frequencies above a specified voltage—all while preserving the original hardware reference frequencies.
+This tool allows you to programmatically edit the VF curve blobs used by MSI Afterburner to store GPU voltage-frequency profiles. It's particularly useful for:
+
+- Applying systematic frequency shifts across the entire VF curve
+- Capping frequencies above a certain voltage threshold
+- Batch-processing curve adjustments without manual GUI interaction
+
+The tool has been **tested on RTX 30-series and GTX 10-series** GPUs.
 
 ## How It Works
 
-The VF curve blob contains a sequence of P-state entries, each consisting of three IEEE-754 single-precision floats:
+MSI Afterburner stores VF curve data in configuration files as hexadecimal blobs. Each blob contains:
 
-| Field | Description |
-|-------|-------------|
-| `volt` | Voltage for this P-state (mV) |
-| `freq` | Hardware reference frequency (MHz) – never modified |
-| `offset` | Runtime delta added to `freq` (MHz) |
+- A 12-byte (24 hex char) header
+- A series of 12-byte (24 hex char) entries, each containing three IEEE-754 single-precision floats:
+  - **Voltage** (mV) - The voltage point for this P-state
+  - **Frequency** (MHz) - Hardware reference frequency (never modified)
+  - **Offset** (MHz) - Delta added to frequency at runtime (effective = freq + offset)
 
-**Effective frequency** = `freq + offset` – this is what Afterburner displays as the curve position.
-
-## Blob Structure
-
-```
-[HEADER: 24 hex chars / 12 bytes] [N x ENTRY: 24 hex chars / 12 bytes each]
-```
-
-- Each entry is packed as three little-endian floats (`fff`)
-- Entries with `volt == 0.0` and `freq == 0.0` are sentinels (end-of-data markers)
-
-## Sanity Limits
-
-| Field | Min | Max |
-|-------|-----|-----|
-| Voltage | 400 mV | 1250 mV |
-| Frequency | 100 MHz | 3000 MHz |
-| Offset | -500 MHz | +500 MHz |
+Entries with `volt == 0.0` and `freq == 0.0` act as sentinels marking the end of valid data.
 
 ## Installation
 
-No installation required – the script is standalone. Just ensure you have Python 3.9+.
+No installation required - just save the script and ensure you have Python 3.9+:
 
 ```bash
-# Make executable
+# Make the script executable (Linux/Mac)
 chmod +x vf_curve_editor.py
 
-# Or run with python
+# Or run directly with Python
 python vf_curve_editor.py
 ```
 
-## Usage Examples
+## Usage
+
+### Basic Commands
 
 ```bash
-# Use default file 'vf_curve_blob.txt' in current directory
+# Use default blob file (vf_curve_blob.txt in current directory)
 python vf_curve_editor.py
 
-# Shift the entire curve by 10 steps (look ahead 10 P-states)
+# Shift the curve by 10 steps (look ahead 10 P-states)
 python vf_curve_editor.py my_blob.txt -s 10
 
-# Shift by 8 steps plus an extra 15 MHz
+# Shift by 8 steps and add 15 MHz extra offset
 python vf_curve_editor.py my_blob.txt -s 8 -f 15
 
-# Shift by 10 steps and cap all frequencies above 900 mV
+# Shift by 10 steps and cap all points above 900 mV
 python vf_curve_editor.py my_blob.txt -s 10 -c 900
 
 # Validate a blob without modifying it
 python vf_curve_editor.py my_blob.txt --validate
 
-# Read blob from stdin
-cat my_blob.txt | python vf_curve_editor.py - -s 5
+# Read from stdin and write to file
+cat blob.txt | python vf_curve_editor.py - -s 5 -o modified.txt
 
-# Save output to a file
-python vf_curve_editor.py my_blob.txt -s 10 -o modified_blob.txt
+# Enable verbose debugging
+python vf_curve_editor.py my_blob.txt -s 10 -v
 ```
 
-## Command Line Options
+### Command Line Arguments
 
-| Option | Description |
-|--------|-------------|
-| `BLOB_FILE` | Path to blob file, `-` for stdin, or omit for `vf_curve_blob.txt` |
-| `-s, --shift` | Look-ahead index shift (must be < number of VF entries) |
-| `-f, --foffset` | Additional frequency offset (MHz) added on top of shift |
-| `-c, --cutoff` | Lock frequencies for all entries at or above this voltage (mV) |
-| `-o, --output` | Write result to file instead of stdout |
-| `--validate` | Parse and validate blob without modifying |
-| `-v, --verbose` | Enable debug logging |
-| `--version` | Show version and exit |
+| Argument | Description | Default |
+|----------|-------------|---------|
+| `blob_source` | Path to blob file, `-` for stdin, or omit for `vf_curve_blob.txt` | `vf_curve_blob.txt` |
+| `-s, --shift` | Look-ahead index shift (must be < number of VF entries) | `0` |
+| `-f, --foffset` | Additional frequency offset in MHz | `0.0` |
+| `-c, --cutoff` | Lock frequencies at or above this voltage (mV) | `None` |
+| `-o, --output` | Write result to file instead of stdout | `None` |
+| `--validate` | Parse and validate blob without modifying | `False` |
+| `-v, --verbose` | Enable debug-level logging | `False` |
+| `--version` | Show version information | - |
 
-## Shift Semantics
+## Finding Your VF Curve Blob
 
-When shifting by `N` steps, each entry's effective frequency becomes:
+MSI Afterburner stores VF curve data in configuration files located at:
 
 ```
-new_effective_freq[i] = original_effective_freq[i + N] + freq_offset
-new_offset[i] = new_effective_freq[i] - freq[i]
+C:\Program Files (x86)\MSI Afterburner\Profiles\VEN_10DE&DEV_XXXX&SUBSYS_XXXXXXXX&REV_XX&BUS_X&DEV_X&FN_X.cfg
 ```
 
-The original `freq` values remain unchanged – only `offset` is modified.
+The filename contains your GPU's hardware IDs:
+- `DEV_XXXX` - Device ID (e.g., `1C82` for GTX 1060)
+- `SUBSYS_XXXXXXXX` - Subsystem ID
+- `REV_XX` - Revision
+- `BUS_X`, `DEV_X`, `FN_X` - PCI bus location
 
-## Cutoff Semantics
+To find your specific file:
+1. Open MSI Afterburner
+2. Make any change to the VF curve (so the file gets written)
+3. Navigate to the `Profiles` folder in your MSI Afterburner installation
+4. Look for the most recently modified `.cfg` file
+
+## Understanding the Transformations
+
+### Shift Operation
+
+When you apply a shift of `N` steps, the tool:
+1. Looks ahead `N` P-states to find the target frequency
+2. Sets the new effective frequency to that target + optional offset
+3. Calculates the required offset: `new_offset = new_effective_freq - original_freq`
+
+This effectively shifts the entire curve to the right (higher voltages) or left (lower voltages) depending on your shift value.
+
+### Cutoff/Capping
 
 When a cutoff voltage is specified:
+1. All entries **below** the cutoff are shifted normally
+2. The last shifted entry below the cutoff determines the cap frequency
+3. All entries **at or above** the cutoff are locked to this cap frequency
 
-1. The shifted effective frequency is computed for the last entry **below** the cutoff
-2. Every entry at or above the cutoff voltage is locked to that same frequency
+This creates a flat voltage-frequency curve above the cutoff point, useful for:
+- Preventing unstable high-voltage operation
+- Power limiting
+- Temperature control
 
-This creates a flat frequency response above the cutoff point.
+## Safety Features
 
-## Output Format
+The tool includes multiple safety checks:
 
-The modified blob is printed to stdout (or a file) as a continuous hex string, preserving the original header and any trailing padding.
+### Input Validation
+- **Voltage**: 400-1250 mV (typical desktop GPU range)
+- **Frequency**: 100-3000 MHz (covers current and near-future GPUs)
+- **Offset**: -500 to +500 MHz (prevents extreme values)
+- Non-finite values (NaN, Inf) are rejected
 
-## Validation
+### Structural Checks
+- Hex string format validation
+- Proper header length (24 chars)
+- Even number of hex characters
+- Detection of malformed entries
 
-The tool performs several validation checks:
-
-- Hex string format and length
-- Float decoding sanity
-- Hardware range limits (voltage, frequency, offset)
-- Non-finite value detection (NaN, Inf)
-
-Use `--validate` to check blob integrity without making changes.
-
-## Error Handling
-
-| Error Type | Description |
-|------------|-------------|
-| `BlobError` | Hex format issues, unpacking failures, or sanity violations |
-| `ValueError` | Invalid shift parameters (negative shift, shift ≥ entry count) |
-| I/O errors | File not found, permission issues, etc. |
+### Runtime Safeguards
+- Shift value must be less than entry count
+- Cutoff voltage must be positive
+- Preserves original header and trailing padding
+- Sentinels remain intact
 
 ## Example Workflow
 
-1. **Extract blob from Afterburner** (using a hex editor or memory scanner)
-2. **Save to a text file** (e.g., `vf_curve_blob.txt`)
-3. **Validate** the blob: `python vf_curve_editor.py --validate`
-4. **Apply transformations**:
+1. **Extract your current curve**:
    ```bash
-   python vf_curve_editor.py -s 8 -f 15 -c 950
+   # Copy the hex blob from your MSI Afterburner .cfg file to blob.txt
+   # Look for a long hex string in the VF curve section
    ```
-5. **Copy output** back into Afterburner
 
-## Notes
+2. **Validate the blob**:
+   ```bash
+   python vf_curve_editor.py blob.txt --validate
+   ```
 
-- Tested on GTX 10-series hardware
-- The tool never modifies the original `freq` values – only `offset` is changed
-- Sentinels (zero entries) are preserved exactly as in the original blob
-- The header is left untouched
+3. **Test transformations**:
+   ```bash
+   # Apply a moderate shift and preview results
+   python vf_curve_editor.py blob.txt -s 5 -v
+   ```
+
+4. **Apply and save**:
+   ```bash
+   # Apply shift + offset + cap, save to new file
+   python vf_curve_editor.py blob.txt -s 8 -f 10 -c 950 -o modified_blob.txt
+   ```
+
+5. **Replace in MSI Afterburner**:
+   - Exit MSI Afterburner
+   - Back up your original `.cfg` file
+   - Replace the hex blob in the `.cfg` file with the modified version
+   - Start MSI Afterburner
+
+## Troubleshooting
+
+### "No VF entries found in the blob"
+- The blob may be corrupted or from an unsupported GPU generation
+- Try extracting the blob again from MSI Afterburner
+
+### "shift must be less than the entry count"
+- Your curve has fewer P-states than the requested shift
+- Reduce the shift value or use `--validate` to see entry count
+
+### "Blob contains non-hexadecimal characters"
+- The input file may contain whitespace, line breaks, or other text
+- Ensure you've extracted only the hex string (no spaces, newlines, or labels)
+
+### "Entry X sanity warning"
+- The decoded values are outside expected ranges but still valid
+- Review the warnings to ensure they match your hardware capabilities
+
+## Technical Notes
+
+- **Endianness**: All floats are little-endian IEEE-754 single-precision
+- **Precision**: The tool preserves original float precision throughout transformations
+- **Memory Layout**: Original header and padding are preserved exactly
+- **Sentinel Handling**: Zero entries are correctly identified as terminators
+
+## Contributing
+
+Feel free to submit issues or pull requests for:
+- Support for additional GPU generations
+- New transformation algorithms
+- Performance improvements
+- Additional validation rules
 
 ## License
 
-Feel free to use, modify, and distribute as needed.
+This tool is provided as-is for educational and personal use. Always backup your original configuration files before making changes.
+
+## Version History
+
+- **2.0.0** - Added cutoff/capping functionality, improved validation, RTX 30-series testing
+- **1.0.0** - Initial release, GTX 10-series support
+
+## Disclaimer
+
+Overclocking and voltage modification can damage your hardware. Use this tool at your own risk. The author assumes no responsibility for any damage caused by improper use of this software.
