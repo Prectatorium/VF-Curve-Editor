@@ -50,25 +50,25 @@ plot.py        → Visualization utilities
 ### Basic run
 
 ```bash
-python cli.py vf_curve_blob.txt
+python -m vfcurve.cli vf_curve_blob.txt
 ````
 
 ### Shift curve
 
 ```bash
-python cli.py blob.txt -s 3
+python -m vfcurve.cli blob.txt -s 3
 ```
 
 ### Add frequency offset
 
 ```bash
-python cli.py blob.txt -f 50
+python -m vfcurve.cli blob.txt -f 50
 ```
 
 ### Apply curve shaping
 
 ```bash
-python cli.py blob.txt --curve-peak 150 --curve-shape 1.5
+python -m vfcurve.cli blob.txt --curve-peak 150 --curve-shape 1.5
 ```
 
 ### Output options
@@ -83,7 +83,7 @@ python cli.py blob.txt --curve-peak 150 --curve-shape 1.5
 ### Validation only
 
 ```bash
-python cli.py blob.txt --validate
+python -m vfcurve.cli blob.txt --validate
 ```
 
 ## GUI Mode
@@ -91,7 +91,7 @@ python cli.py blob.txt --validate
 Launch interactive editor:
 
 ```bash
-python cli.py blob.txt --gui
+python -m vfcurve.cli blob.txt --gui
 ```
 
 ### Controls
@@ -109,7 +109,7 @@ Click **Commit Changes*- to:
 ## Plot Mode
 
 ```bash
-python cli.py blob.txt --plot
+python -m vfcurve.cli blob.txt --plot
 ```
 
 Shows:
