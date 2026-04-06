@@ -4,8 +4,6 @@ A tool for parsing, modifying, and rebuilding NVIDIA / MSI Afterburner VF curve 
 
 Supports deterministic curve shifting, parametric shaping, and serialization back into the original binary format.
 
----
-
 ## Features
 
 - **Robust parsing**
@@ -36,8 +34,6 @@ Supports deterministic curve shifting, parametric shaping, and serialization bac
   - Table view (`--table`)
   - JSON export (`--json`)
 
----
-
 ## Installation
 
 ### Option 1 — Run directly
@@ -45,8 +41,6 @@ Supports deterministic curve shifting, parametric shaping, and serialization bac
 ```bash
 python -m vfcurve.cli vf_curve_blob.txt --table
 ```
-
----
 
 ### Option 2 — Build executable
 
@@ -63,8 +57,6 @@ Run:
 ./dist/vfcurve vf_curve_blob.txt --table
 ```
 
----
-
 ## Usage
 
 ### Basic
@@ -73,15 +65,11 @@ Run:
 vfcurve my_blob.txt
 ```
 
----
-
 ### Shift curve
 
 ```bash
 vfcurve my_blob.txt -s 10
 ```
-
----
 
 ### Shift + flat offset
 
@@ -89,15 +77,11 @@ vfcurve my_blob.txt -s 10
 vfcurve my_blob.txt -s 8 -f 15
 ```
 
----
-
 ### Voltage cutoff
 
 ```bash
 vfcurve my_blob.txt -s 10 -c 900
 ```
-
----
 
 ### Curve shaping
 
@@ -109,8 +93,6 @@ vfcurve my_blob.txt \
   --curve-end-mv 1000
 ```
 
----
-
 ### Combined
 
 ```bash
@@ -119,8 +101,6 @@ vfcurve my_blob.txt \
   --curve-peak 50 \
   --curve-shape 0.5
 ```
-
----
 
 ### Debug output
 
@@ -136,8 +116,6 @@ vfcurve my_blob.txt --table
 vfcurve my_blob.txt --json
 ```
 
----
-
 ## How it works
 
 Each VF entry consists of:
@@ -152,8 +130,6 @@ Effective frequency:
 effective = freq + offset
 ```
 
----
-
 ### Transformation pipeline
 
 For each entry:
@@ -163,8 +139,6 @@ For each entry:
 3. **Curve boost**
 4. **Cutoff cap**
 5. **Offset clamp**
-
----
 
 ### Curve shaping formula
 
@@ -177,21 +151,17 @@ boost = peak_mhz - t^power
 - `< 1.0` → convex (front-loaded)
 - `> 1.0` → concave (back-loaded)
 
----
-
 ## Safety notes
 
 - Output offsets are clamped to safe hardware limits
 - Blob size is never changed
 - Invalid blobs will fail fast (no silent corruption)
 
----
-
 ## Development
 
 Project structure:
 
-```bash
+```
 vfcurve/
   model.py
   parser.py
@@ -199,8 +169,6 @@ vfcurve/
   serializer.py
   cli.py
 ```
-
----
 
 ## Future ideas
 
