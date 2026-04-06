@@ -36,7 +36,7 @@ plot.py        → Visualization utilities
 
 ## How It Works (Short Version)
 
-1. **Input blob*- is parsed into VF entries (`voltage`, `frequency`, `offset`)
+1. *Input blob* - is parsed into VF entries (`voltage`, `frequency`, `offset`)
 2. A transformation pipeline is applied:
    - Step shift (index look-ahead)
    - Optional curve boost
@@ -96,12 +96,12 @@ python -m vfcurve.cli blob.txt --gui
 
 ### Controls
 
-- **Shift*- → look-ahead curve shift
-- **Peak MHz*- → curve boost amplitude
-- **Power*- → curve steepness
+- *Shift* → look-ahead curve shift
+- *Peak MHz* → curve boost amplitude
+- *Power* → curve steepness
 - Live preview updates instantly
 
-Click **Commit Changes*- to:
+Click *Commit Changes* to:
 
 - Save `vf_curve_modified.txt`
 - Copy blob to clipboard (if `pyperclip` installed)
