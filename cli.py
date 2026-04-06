@@ -4,12 +4,16 @@ import argparse
 import json
 import logging
 import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from pathlib import Path
 
 from .model import ShiftConfig, CurveConfig, BlobError
 from .parser import parse_entries
 from .transform import apply_shift_to_entries
 from .serializer import serialize_blob
+from .plot import plot_curves
+from .gui import launch_gui
 
 
 log = logging.getLogger(__name__)
@@ -107,6 +111,11 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--strict", action="store_true")
     p.add_argument("-v", "--verbose", action="store_true")
 
+    # Plot
+    p.add_argument("--plot", action="store_true")
+
+    # GUI
+    p.add_argument("--gui", action="store_true")
     return p
 
 
@@ -151,6 +160,13 @@ def main() -> None:
 
         if args.json:
             print_json(debug)
+
+        if args.plot:
+            plot_curves(entries, new_entries)
+
+        if args.gui:
+            launch_gui(blob)
+            return
 
         write_output(new_blob, args.output)
 
