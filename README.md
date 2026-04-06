@@ -1,177 +1,190 @@
 # VF Curve Editor
 
-A tool for parsing, modifying, and rebuilding NVIDIA / MSI Afterburner VF curve blobs.
+A Python tool for parsing, editing, and visualizing GPU voltage-frequency (VF) curve blobs (used by MSI Afterburner-style formats).  
+Supports CLI, GUI, plotting, and programmatic transformation with configurable curve shaping and offsets.
 
-Supports deterministic curve shifting, parametric shaping, and serialization back into the original binary format.
+> Work in progress — expect evolving behavior, missing edge-case hardening, and API tweaks.
 
 ## Features
 
-- **Robust parsing**
+- Parse proprietary VF curve hex blobs into structured data Apply:
+  - Step shifting (look-ahead frequency shifting)
+  - Flat frequency offset
+  - Custom curve shaping (power-based boost curve)
+  - Voltage cutoff locking
+- Validate blob structure and monotonic voltage ordering
+- Serialize modified curves back into original blob format
+- CLI output modes:
+  - Table view
+  - JSON debug export
+  - Plot visualization
+- GUI editor with live curve preview (Tkinter + Matplotlib)
+- Interactive curve comparison plot with hover inspection
 
-  - Validates hex blobs and detects malformed entries
-  - Handles sentinel termination safely
+## Project Structure
 
-- **Deterministic transformations**
+```
+cli.py         → Command-line interface
+gui.py         → Tkinter GUI editor
+model.py       → Core data models & config structures
+parser.py      → VF blob parsing & validation
+transform.py   → Curve transformation logic
+serializer.py  → Rebuild blob from modified entries
+plot.py        → Visualization utilities
 
-  - Look-ahead shift (P-state remapping)
-  - Flat frequency offsets
-  - Parametric curve shaping (power curve)
-  - Voltage cutoff capping
-
-- **Advanced curve control**
-
-  - Linear / convex / concave shaping
-  - Composable with shift + offset
-
-- **Safety-first design**
-
-  - Output clamping (prevents invalid offsets)
-  - Voltage order validation
-  - Strict serialization bounds
-
-- **Debug-friendly output**
-
-  - Table view (`--table`)
-  - JSON export (`--json`)
-
-## Installation
-
-### Option 1 — Run directly
-
-```bash
-python -m vfcurve.cli vf_curve_blob.txt --table
 ```
 
-### Option 2 — Build executable
+## How It Works (Short Version)
 
-Using PyInstaller:
+1. **Input blob*- is parsed into VF entries (`voltage`, `frequency`, `offset`)
+2. A transformation pipeline is applied:
+   - Step shift (index look-ahead)
+   - Optional curve boost
+   - Flat offset
+   - Optional cutoff lock
+3. New offsets are computed and clamped to safe ranges
+4. Result is serialized back into the original hex blob format
 
-```bash
-pip install pyinstaller
-pyinstaller --onefile -n vfcurve -m vfcurve.cli
-```
+## CLI Usage
 
-Run:
-
-```bash
-./dist/vfcurve vf_curve_blob.txt --table
-```
-
-## Usage
-
-### Basic
+### Basic run
 
 ```bash
-vfcurve my_blob.txt
-```
+python cli.py vf_curve_blob.txt
+````
 
 ### Shift curve
 
 ```bash
-vfcurve my_blob.txt -s 10
+python cli.py blob.txt -s 3
 ```
 
-### Shift + flat offset
+### Add frequency offset
 
 ```bash
-vfcurve my_blob.txt -s 8 -f 15
+python cli.py blob.txt -f 50
 ```
 
-### Voltage cutoff
+### Apply curve shaping
 
 ```bash
-vfcurve my_blob.txt -s 10 -c 900
+python cli.py blob.txt --curve-peak 150 --curve-shape 1.5
+```
+
+### Output options
+
+```bash
+--table        # print debug table
+--json         # print debug JSON
+--plot         # show curve plot
+-o output.txt  # write modified blob
+```
+
+### Validation only
+
+```bash
+python cli.py blob.txt --validate
+```
+
+## GUI Mode
+
+Launch interactive editor:
+
+```bash
+python cli.py blob.txt --gui
+```
+
+### Controls
+
+- **Shift*- → look-ahead curve shift
+- **Peak MHz*- → curve boost amplitude
+- **Power*- → curve steepness
+- Live preview updates instantly
+
+Click **Commit Changes*- to:
+
+- Save `vf_curve_modified.txt`
+- Copy blob to clipboard (if `pyperclip` installed)
+
+## Plot Mode
+
+```bash
+python cli.py blob.txt --plot
+```
+
+Shows:
+
+- Original VF curve
+- Modified curve
+- Hover tooltip inspection per point
+
+## Core Concepts
+
+### Shift logic
+
+Each point uses future frequency values:
+
+```py
+new_freq[i] = freq[i + shift_steps]
 ```
 
 ### Curve shaping
 
-```bash
-vfcurve my_blob.txt \
-  --curve-peak 100 \
-  --curve-shape 2.0 \
-  --curve-start-mv 700 \
-  --curve-end-mv 1000
-```
-
-### Combined
-
-```bash
-vfcurve my_blob.txt \
-  -s 5 \
-  --curve-peak 50 \
-  --curve-shape 0.5
-```
-
-### Debug output
-
-#### Table view
-
-```bash
-vfcurve my_blob.txt --table
-```
-
-#### JSON output
-
-```bash
-vfcurve my_blob.txt --json
-```
-
-## How it works
-
-Each VF entry consists of:
-
-- `volt` (mV)
-- `freq` (base MHz)
-- `offset` (runtime delta)
-
-Effective frequency:
+A normalized voltage curve applies nonlinear boost:
 
 ```py
-effective = freq + offset
-```
-
-### Transformation pipeline
-
-For each entry:
-
-1. **Look-ahead shift**
-2. **Flat offset**
-3. **Curve boost**
-4. **Cutoff cap**
-5. **Offset clamp**
-
-### Curve shaping formula
-
-```py
-t     = clamp((volt - start_mv) / (end_mv - start_mv), 0, 1)
 boost = peak_mhz - t^power
 ```
 
-- `power = 1.0` → linear
-- `< 1.0` → convex (front-loaded)
-- `> 1.0` → concave (back-loaded)
+Where `t` is voltage position between start and end.
 
-## Safety notes
+### Cutoff mode
 
-- Output offsets are clamped to safe hardware limits
-- Blob size is never changed
-- Invalid blobs will fail fast (no silent corruption)
+Locks frequency after a voltage threshold.
 
-## Development
+## Constraints
 
-Project structure:
+The system enforces:
 
-```
-vfcurve/
-  model.py
-  parser.py
-  transform.py
-  serializer.py
-  cli.py
-```
+- Voltage monotonicity
+- Frequency bounds (100–3000 MHz)
+- Offset bounds (-500 to +500 MHz)
+- Safe float validation (no NaN/Inf)
+- Blob structural integrity (fixed header + payload)
 
-## Future ideas
+##  Status
 
-- Curve visualization (matplotlib)
-- CSV import/export
-- GUI frontend
+This is still evolving:
+
+- No formal test suite yet
+- Parser assumes strict blob format
+- GUI is functional but not polished
+- Edge cases in malformed blobs may still slip through
+
+## Requirements
+
+- Python 3.10+
+- matplotlib
+- numpy
+
+Optional:
+
+- pyperclip (clipboard support in GUI)
+
+## Future Ideas
+
+- Preset profiles (OC / undervolt modes)
+- Undo/redo stack in GUI
+- Real-time GPU telemetry integration
+- Safer blob schema validation layer
+- Export/import curve presets (JSON)
+- Better error diagnostics for corrupted blobs
+
+## Why this exists
+
+Because manually dragging VF curves is pain, and automation should hurt less than GPU instability testing.
+
+## Disclaimer
+
+This tool can affect GPU stability.
+If your system starts behaving like a microwave with opinions, that’s on you.
